@@ -1,11 +1,13 @@
 #pragma once
 #include "Plat.h"
 
-FILE* thelog;
 
 class Server
 {
-
+private:
+	char readmsg[256];
+	char sending[256];
+	FILE* thelog;
 public:
 	int ServerCode(void);
 	int readMessage(char* buffer, int32_t size, SOCKET& asock);

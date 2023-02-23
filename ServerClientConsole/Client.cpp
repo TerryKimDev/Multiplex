@@ -25,6 +25,9 @@ int Client::ClientCode(void)
 	{
 		address = "127.0.0.1";
 	}
+	std::cin.clear();
+	std::cin.ignore(INT_MAX, '\n');
+
 	//Socket
 	SOCKET ComSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (ComSocket == INVALID_SOCKET)
@@ -54,24 +57,53 @@ int Client::ClientCode(void)
 	else
 	{
 		printf("Connected\n");
+		printf("Try $register for you client to start.");
 	}
 
 	char s[256];
 	//Communication
-	do
-	{
-		readMessage(readmsg, 256, ComSocket);
+	do	{		
 
-
-		std::cin.get(s, 256);
-		std::cin.clear();
-		std::cin.ignore(INT_MAX, '\n');
-
+		
+		if (Ureg == false)
+		{
+			std::string temp = "\n";
+			std::cin.get(s, 256);
+			std::cin.clear();
+			std::cin.ignore(INT_MAX, '\n');
+			temp = s;
+			while (temp.find("$register") == std::string::npos || temp.size() < 10)
+			{
+				printf("try again\n");
+				std::cin.get(s, 256);
+				std::cin.clear();
+				std::cin.ignore(INT_MAX, '\n');
+				temp = s;
+			}
+			Ureg = true;
+		}
+		else
+		{
+			std::cin.get(s, 256);
+			std::cin.clear();
+			std::cin.ignore(INT_MAX, '\n');
+		}
 		Sendit(s, strlen(s), ComSocket);
 		if (s == "$quit") //just extra security
 		{
 			break;
 		}
+
+		memset(readmsg, '\0', 256);
+		if (readMessage(readmsg, 256, ComSocket) != SUCCESS)
+		{
+			printf("\nsomething went wrong with connecting\n The server may be full\n");
+			system("pause");
+			break;
+		}
+
+		
+		
 
 	} while (s != "$quit");
 	shutdown(ComSocket, SD_BOTH);
@@ -113,7 +145,7 @@ int Client::readMessage(char* buffer, int32_t size, SOCKET& asock) {
 		return SHUTDOWN;
 	}
 
-	printf("\n\n");
+	printf("\n");
 	for (size_t i = 0; i < Users.size(); i++)
 	{
 		if (Users[i].userSocket == asock)
@@ -124,145 +156,8 @@ int Client::readMessage(char* buffer, int32_t size, SOCKET& asock) {
 		}
 	}
 	printf(buffer);
-	printf("\n\n");
-#pragma region junk
+	printf("\n");
 
-	//uint8_t bufferSize = size;
-	//int size_result = tcp_recv_whole(asock, (char*)&bufferSize, 1); // receiveTcpData(server_Comm_Socket, (char*)&bufferSize, 1);
-	//if ((size_result == SOCKET_ERROR))
-	//{
-	//	int error = WSAGetLastError();
-	//	//DEBUG: Read Is Incorrect
-	//	return;
-	//}
-	//else if (size_result == 0)
-	//{
-	//	return;
-	//}
-
-
-	//if (size < strlen(buffer) || size <= 0)
-	//{
-	//	//DEBUG: Message Size Error
-	//	int error = WSAGetLastError();
-	//	return;
-	//}
-	////DEBUG: Message Size Valid
-
-	//int result = tcp_recv_whole(asock, buffer, bufferSize); // receiveTcpData(server_Comm_Socket, buffer, bufferSize);
-	//if ((result == SOCKET_ERROR))
-	//{
-	//	int error = WSAGetLastError();
-	//	//DEBUG: Read Is Incorrect
-	//	return;
-	//}
-	//else if (result == INVALID_SOCKET)
-	//{
-	//	return;
-	//}
-
-
-
-	//printf("\n\n");
-	//printf(buffer);
-	//printf("\n\n");
-
-#pragma endregion
-
-	std::string sendmsg;
-	sendmsg = buffer;
-	if (sendmsg.find("$register") != std::string::npos/* && sendmsg.size() > 10*/)
-	{
-		int pos = sendmsg.find("$register");
-		regisUser NewUser;
-		strcpy(NewUser.User, sendmsg.substr(pos + 10, 15).c_str());
-		NewUser.userSocket = asock;
-		if (Users.empty())
-		{
-			Users.push_back(NewUser);
-		}
-		else
-		{
-			for (int i = 0; i < Users.size(); i++)
-			{
-				if (Users[i].User != NewUser.User)
-				{
-					if (Users[i].userSocket != NewUser.userSocket)
-					{
-						Users.push_back(NewUser);
-						Sendit((char*)"New User has been registered", 50, asock);
-					}
-					else
-					{
-						strcpy(Users[i].User, NewUser.User);
-						Sendit((char*)"Users name has been changed", 50, asock);
-					}
-				}
-				else
-				{
-					if (Users[i].userSocket != NewUser.userSocket)
-					{
-						printf("This User already Exists \n");
-					}
-				}
-			}
-		}
-
-	}
-
-	if (strncmp(buffer, "$getlist", 11) == 0)
-	{
-
-
-		if (Users.empty() == true)
-		{
-			Sendit((char*)"No registered Users", 40, asock);
-			printf("the list is empty");
-		}
-		else
-		{
-			char text[256];
-			memset(text, 0, 256);
-			strcat(text, "Registered Users : ");
-			printf("Registered Users : ");
-			for (size_t i = 0; i < Users.size(); )
-			{
-
-				printf(Users[i].User);
-				strcat(text, Users[i].User);
-				i++;
-				if (i < Users.size())
-				{
-					printf(", ");
-					strcat(text, ", ");
-				}
-			}
-			Sendit(text, strlen(text), asock);
-		}
-	}
-
-	if (strncmp(buffer, "$getlog", 11) == 0)
-	{
-
-
-	}
-	if (strncmp(buffer, "$quit", 11) == 0)
-	{
-		std::vector<regisUser>::iterator ptr;
-		for (ptr = Users.begin(); ptr != Users.end(); ptr++)
-		{
-			if (ptr->userSocket == asock)
-			{
-				printf("<User> ");
-				printf(ptr->User);
-				printf(" disconnected");
-				Users.erase(ptr);
-
-				break;
-			}
-		}
-		return SHUTDOWN;
-	}
 	return SUCCESS;
 }
 

@@ -21,11 +21,11 @@ int Server::ServerCode(void)
 	int numSock = 5;
 	do
 	{
-		printf("How many clients should be supported?\n Will default to 3 if you dont put in anything valid\n");
+		printf("How many clients should be supported?\n Will default to 5 if you dont put in anything valid\n");
 		std::cin >> numSock;
 		if (std::cin.fail())
 		{
-			numSock = 100;
+			numSock = 5;
 			std::cin.clear();
 			std::cin.ignore(INT_MAX, '\n');
 		}
@@ -40,9 +40,8 @@ int Server::ServerCode(void)
 		printf("setUp error");
 		return SETUP_ERROR;
 	}
-
 	//Bind
-		sockaddr_in serverAddr;
+	sockaddr_in serverAddr;
 	serverAddr.sin_family = AF_INET;
 	serverAddr.sin_addr.S_un.S_addr = INADDR_ANY;
 	serverAddr.sin_port = htons(port);
@@ -50,20 +49,20 @@ int Server::ServerCode(void)
 	int result = bind(listenSocket, (SOCKADDR*)&serverAddr, sizeof(serverAddr));
 	if (result == SOCKET_ERROR)
 	{
-	//DEBUG: Bind Incorrect
+		//DEBUG: Bind Incorrect
 		int error = WSAGetLastError();
-	printf("bind error");
-	return BIND_ERROR;
+		printf("bind error");
+		return BIND_ERROR;
 	}
 
 	//Listen
-		result = listen(listenSocket, 1);
+	result = listen(listenSocket, 1);
 	if (result == SOCKET_ERROR)
 	{
-	//DEBUG: Listen Incorrect
+		//DEBUG: Listen Incorrect
 		int error = WSAGetLastError();
-	printf("Listen Error");
-	return SETUP_ERROR;
+		printf("Listen Error");
+		return SETUP_ERROR;
 	}
 
 	printf("Waiting...\n\n");
@@ -81,16 +80,16 @@ int Server::ServerCode(void)
 	do
 	{
 
-		memset(sending, 0, 256);
+		memset(sending, '\0', 256);
 		readySet = masterSet;
 		int readyFD = select(0, &readySet, NULL, NULL, NULL);
 		if (FD_ISSET(listenSocket, &readySet)) {
 			ComSocket = accept(listenSocket, NULL, NULL);
 			if (ComSocket == INVALID_SOCKET)
 			{
-			//DEBUG: Accept Incorrect
+				//DEBUG: Accept Incorrect
 				int error = WSAGetLastError();
-			return CONNECT_ERROR;
+				return CONNECT_ERROR;
 			}
 			else if (ComSocket == SOCKET_ERROR)
 			{
@@ -100,38 +99,41 @@ int Server::ServerCode(void)
 			else if (masterSet.fd_count <= numSock)
 			{
 				FD_SET(ComSocket, &masterSet);
+
 			}
-			else
+			else if (masterSet.fd_count > numSock)
 			{
-				strcat(sending, "This server is full");
-				printf("//Log in was attempted when master set was full");
+				Sendit((char*)"This server was full", strlen("This server was full"), ComSocket);
+				printf("\n//Log in was attempted when master set was full\n");
 				shutdown(ComSocket, SD_BOTH);
 				closesocket(ComSocket);
 			}
-			/*if (ComSocket == INVALID_SOCKET)
-			{
-				printf("Accepted Socket\n");
-				return;
-
-			}
-			else
-			{
-
-			}*/
 		}
 
-		Sendit(sending, 256, ComSocket);
 
 		for (int i = 0; i < masterSet.fd_count; i++)
 		{
 			if (FD_ISSET(masterSet.fd_array[i], &readySet))
 			{
 				if (masterSet.fd_array[i] != listenSocket) {
-					memset(readmsg, 0, 256);
+					memset(readmsg, '\0', 256);
 
 					int readout = readMessage(readmsg, 256, masterSet.fd_array[i]);
 					if (readout != SUCCESS)
 					{
+						std::vector<regisUser>::iterator ptr;
+						for (ptr = Users.begin(); ptr != Users.end(); ptr++)
+						{
+							if (ptr->userSocket == masterSet.fd_array[i])
+							{
+								printf("<User> ");
+								printf(ptr->User);
+								printf(" disconnected");
+								Users.erase(ptr);
+
+								break;
+							}
+						}
 						shutdown(masterSet.fd_array[i], SD_BOTH);
 						closesocket(masterSet.fd_array[i]);
 						FD_CLR(masterSet.fd_array[i], &masterSet);
@@ -181,7 +183,7 @@ int Server::readMessage(char* buffer, int32_t size, SOCKET& asock) {
 		return SHUTDOWN;
 	}
 
-	printf("\n\n");
+	printf("\n");
 	for (size_t i = 0; i < Users.size(); i++)
 	{
 		if (Users[i].userSocket == asock)
@@ -192,54 +194,12 @@ int Server::readMessage(char* buffer, int32_t size, SOCKET& asock) {
 		}
 	}
 	printf(buffer);
-	printf("\n\n");
-#pragma region junk
+	printf("\n");
 
-	//uint8_t bufferSize = size;
-	//int size_result = tcp_recv_whole(asock, (char*)&bufferSize, 1); // receiveTcpData(server_Comm_Socket, (char*)&bufferSize, 1);
-	//if ((size_result == SOCKET_ERROR))
-	//{
-	//	int error = WSAGetLastError();
-	//	//DEBUG: Read Is Incorrect
-	//	return;
-	//}
-	//else if (size_result == 0)
-	//{
-	//	return;
-	//}
-
-
-	//if (size < strlen(buffer) || size <= 0)
-	//{
-	//	//DEBUG: Message Size Error
-	//	int error = WSAGetLastError();
-	//	return;
-	//}
-	////DEBUG: Message Size Valid
-
-	//int result = tcp_recv_whole(asock, buffer, bufferSize); // receiveTcpData(server_Comm_Socket, buffer, bufferSize);
-	//if ((result == SOCKET_ERROR))
-	//{
-	//	int error = WSAGetLastError();
-	//	//DEBUG: Read Is Incorrect
-	//	return;
-	//}
-	//else if (result == INVALID_SOCKET)
-	//{
-	//	return;
-	//}
-
-
-
-	//printf("\n\n");
-	//printf(buffer);
-	//printf("\n\n");
-
-#pragma endregion
 
 	std::string sendmsg;
 	sendmsg = buffer;
-	if (sendmsg.find("$register") != std::string::npos/* && sendmsg.size() > 10*/)
+	if (strncmp(buffer, "$register", 9) == 0 && strlen(buffer) > 10)
 	{
 		int pos = sendmsg.find("$register");
 		regisUser NewUser;
@@ -248,17 +208,23 @@ int Server::readMessage(char* buffer, int32_t size, SOCKET& asock) {
 		if (Users.empty())
 		{
 			Users.push_back(NewUser);
+
+			Sendit((char*)"New User has been registered", strlen((char*)"New User has been registered"), asock);
+			memset(buffer, '\n', strlen(buffer));
 		}
 		else
 		{
-			for (int i = 0; i < Users.size(); i++)
+			int c = Users.size();
+			for (int i = 0; i < c; i++)
 			{
 				if (Users[i].User != NewUser.User)
 				{
 					if (Users[i].userSocket != NewUser.userSocket)
 					{
 						Users.push_back(NewUser);
-						Sendit((char*)"New User has been registered", 50, asock);
+
+
+						Sendit((char*)"New User has been registered", strlen((char*)"New User has been registered"), asock);
 					}
 					else
 					{
@@ -278,7 +244,7 @@ int Server::readMessage(char* buffer, int32_t size, SOCKET& asock) {
 
 	}
 
-	if (strncmp(buffer, "$getlist", 11) == 0)
+	else if (strncmp(buffer, "$getlist", 11) == 0)
 	{
 
 
@@ -290,7 +256,7 @@ int Server::readMessage(char* buffer, int32_t size, SOCKET& asock) {
 		else
 		{
 			char text[256];
-			memset(text, 0, 256);
+			memset(text, '\0', 256);
 			strcat(text, "Registered Users : ");
 			printf("Registered Users : ");
 			for (size_t i = 0; i < Users.size(); )
@@ -308,13 +274,12 @@ int Server::readMessage(char* buffer, int32_t size, SOCKET& asock) {
 			Sendit(text, strlen(text), asock);
 		}
 	}
-
-	if (strncmp(buffer, "$getlog", 11) == 0)
+	else if (strncmp(buffer, "$getlog", 11) == 0)
 	{
 
 
 	}
-	if (strncmp(buffer, "$quit", 11) == 0)
+	else if (strncmp(buffer, "$quit", 11) == 0)
 	{
 		std::vector<regisUser>::iterator ptr;
 		for (ptr = Users.begin(); ptr != Users.end(); ptr++)
@@ -331,6 +296,22 @@ int Server::readMessage(char* buffer, int32_t size, SOCKET& asock) {
 		}
 		return SHUTDOWN;
 	}
+	else {
+
+		char autores[70] = "";
+		for (size_t i = 0; i < Users.size(); i++)
+		{
+			if (Users[i].userSocket == asock)
+			{
+				strcat(autores, "<User> ");
+				strcat(autores, Users[i].User);
+				strcat(autores, " : ");
+			}
+		}
+		strcat(autores, buffer);
+		Sendit(autores, strlen(autores), asock);
+	}
+
 	return SUCCESS;
 }
 

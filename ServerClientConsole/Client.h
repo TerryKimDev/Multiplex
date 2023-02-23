@@ -3,6 +3,10 @@
 
 class Client
 {
+private:
+	bool Ureg = false;
+	char readmsg[256];
+	char sending[256];
 public:
 	int ClientCode(void);
 	int readMessage(char* buffer, int32_t size, SOCKET& asock);

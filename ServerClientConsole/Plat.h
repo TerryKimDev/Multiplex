@@ -9,16 +9,15 @@
 #include <fstream>
 #include "definitions.h"
 
-
-static char readmsg[256];
-static char sending[256] = "";
-
+//namespace Chat {
+//	char readmsg[256];
+//	char sending[256];
+//}
 struct regisUser {
 	SOCKET userSocket;
 	char User[15];
 };
-
-static std::vector<regisUser> Users;
+	static std::vector<regisUser> Users;
 
 inline int validate()
 {
